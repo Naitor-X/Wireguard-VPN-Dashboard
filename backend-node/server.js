@@ -77,52 +77,53 @@ function parseWireguardConfig(configPath) {
     // Peer-Abschnitte extrahieren - verbesserte Version
     const peers = [];
     
-    // Zuerst den Interface-Abschnitt überspringen
-    const contentWithoutInterface = configContent.split('[Interface]')[1];
+    // Alle Peer-Abschnitte finden
+    const sections = configContent.split(/\n# /);
     
-    // Dann alle Peer-Abschnitte finden
-    const peerSections = contentWithoutInterface.split(/# (.*?)\n\[Peer\]/g);
-    
-    // Der erste Eintrag ist der Rest des Interface-Abschnitts, überspringen
-    for (let i = 1; i < peerSections.length; i += 2) {
-      if (i + 1 < peerSections.length) {
-        const name = peerSections[i].trim();
-        const peerContent = peerSections[i + 1];
+    // Der erste Abschnitt ist der Interface-Abschnitt, überspringen
+    for (let i = 1; i < sections.length; i++) {
+      const section = sections[i];
+      const lines = section.split('\n');
+      
+      // Der erste Teil ist der Name des Clients
+      const name = lines[0].trim();
+      
+      // Suche nach dem Peer-Abschnitt
+      const peerContent = section.substring(section.indexOf('[Peer]'));
+      
+      // Extrahiere die relevanten Informationen
+      const publicKeyMatch = /PublicKey\s*=\s*(.*)/m.exec(peerContent);
+      const allowedIpsMatch = /AllowedIPs\s*=\s*(.*)/m.exec(peerContent);
+      
+      if (publicKeyMatch && allowedIpsMatch) {
+        const publicKey = publicKeyMatch[1].trim();
+        const allowedIps = allowedIpsMatch[1].trim();
         
-        // Extrahiere die relevanten Informationen
-        const publicKeyMatch = /PublicKey\s*=\s*(.*)/m.exec(peerContent);
-        const allowedIpsMatch = /AllowedIPs\s*=\s*(.*)/m.exec(peerContent);
-        
-        if (publicKeyMatch && allowedIpsMatch) {
-          const publicKey = publicKeyMatch[1].trim();
-          const allowedIps = allowedIpsMatch[1].trim();
+        // IP-Adresse extrahieren (nehme die erste, falls mehrere vorhanden sind)
+        const ipMatch = /(\d+\.\d+\.\d+\.\d+)/.exec(allowedIps);
+        if (ipMatch) {
+          const ip = ipMatch[1];
           
-          // IP-Adresse extrahieren (nehme die erste, falls mehrere vorhanden sind)
-          const ipMatch = /(\d+\.\d+\.\d+\.\d+)/.exec(allowedIps);
-          if (ipMatch) {
-            const ip = ipMatch[1];
-            
-            // Bestimme, ob es sich um einen Admin-Client handelt (10.10.10.x)
-            const isAdmin = ip.startsWith('10.10.10.');
-            
-            // Status aus dem globalen Speicher abrufen oder Standardwert setzen
-            const clientStatus = clientsStatus[ip] || {
-              status: 'offline',
-              lastSeen: new Date().toISOString()
-            };
-            
-            peers.push({
-              id: peers.length + 1,
-              name,
-              ip,
-              publicKey,
-              lastSeen: clientStatus.lastSeen,
-              isAdmin,
-              status: clientStatus.status
-            });
-            
-            console.log(`Client gefunden: ${name}, IP: ${ip}, isAdmin: ${isAdmin}, Status: ${clientStatus.status}`);
-          }
+          // Bestimme, ob es sich um einen Admin-Client handelt (10.10.10.x)
+          const isAdmin = ip.startsWith('10.10.10.');
+          
+          // Status aus dem globalen Speicher abrufen oder Standardwert setzen
+          const clientStatus = clientsStatus[ip] || {
+            status: 'offline',
+            lastSeen: new Date().toISOString()
+          };
+          
+          peers.push({
+            id: peers.length + 1,
+            name,
+            ip,
+            publicKey,
+            lastSeen: clientStatus.lastSeen,
+            isAdmin,
+            status: clientStatus.status
+          });
+          
+          console.log(`Client gefunden: ${name}, IP: ${ip}, isAdmin: ${isAdmin}, Status: ${clientStatus.status}`);
         }
       }
     }

@@ -40,7 +40,7 @@ Beispielantwort:
   "adminClients": [
     {
       "id": 1,
-      "name": "ClemensT14",
+      "name": "test-admin",
       "ip": "10.10.10.2",
       "publicKey": "mvFMF4ppFYPpx9pTiLkk3lEXZwhZst4+6hMnw3vHvhM=",
       "isAdmin": true,
@@ -51,7 +51,7 @@ Beispielantwort:
   "normalClients": [
     {
       "id": 5,
-      "name": "hm-gisingen",
+      "name": "test",
       "ip": "10.10.11.2",
       "publicKey": "CMqUKtHSxH0Vrs12oePoqVVHCfHGi6FU5dpvcq9IP0Y=",
       "isAdmin": false,

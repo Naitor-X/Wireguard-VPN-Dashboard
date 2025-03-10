@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import AddClientModal from './AddClientModal';
 import { 
   PlusIcon, 
-  CheckCircleIcon, 
+  // CheckCircleIcon, 
   XCircleIcon, 
   ClockIcon, 
   UserIcon, 
