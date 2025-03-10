@@ -32,45 +32,144 @@ Ein modernes, leichtes Dashboard zur Verwaltung von Wireguard VPN-Clients mit No
 
 ## Installation
 
-### Backend
+### Voraussetzungen
 
-```bash
-# Ins Backend-Verzeichnis wechseln
-cd backend-node
+- Node.js (v14 oder höher)
+- npm (v6 oder höher)
+- Wireguard (bereits installiert und konfiguriert)
 
-# Abhängigkeiten installieren
-npm install
-```
+### Schritt-für-Schritt-Anleitung
 
-### Frontend
+1. **Repository klonen**
 
-```bash
-# Abhängigkeiten installieren
-npm install
-```
+   ```bash
+   git clone https://github.com/ihr-username/wireguard-dashboard.git
+   cd wireguard-dashboard
+   ```
 
-## Starten der Anwendung
+2. **Backend einrichten**
+
+   ```bash
+   # Ins Backend-Verzeichnis wechseln
+   cd backend-node
+
+   # Abhängigkeiten installieren
+   npm install
+
+   # Zurück zum Hauptverzeichnis
+   cd ..
+   ```
+
+3. **Frontend einrichten**
+
+   ```bash
+   # Abhängigkeiten im Hauptverzeichnis installieren
+   npm install
+   ```
+
+4. **Konfiguration**
+
+   Das Backend liest standardmäßig die Wireguard-Konfiguration aus `/etc/wireguard/wg0.conf`. Falls Ihre Konfiguration an einem anderen Ort liegt, können Sie dies über Umgebungsvariablen anpassen:
+
+   ```bash
+   # Optional: Umgebungsvariablen setzen
+   export WIREGUARD_CONFIG_PATH=/pfad/zu/ihrer/wg0.conf
+   export WIREGUARD_DIR=/pfad/zu/ihrem/wireguard-verzeichnis
+   ```
+
+   Alternativ können Sie diese Variablen in einer `.env`-Datei im Backend-Verzeichnis speichern:
+
+   ```
+   WIREGUARD_CONFIG_PATH=/pfad/zu/ihrer/wg0.conf
+   WIREGUARD_DIR=/pfad/zu/ihrem/wireguard-verzeichnis
+   PORT=5001
+   ```
+
+5. **Berechtigungen einrichten**
+
+   Das Backend benötigt Leserechte für die Wireguard-Konfigurationsdatei und Schreibrechte für das Wireguard-Verzeichnis:
+
+   ```bash
+   # Leserechte für die Konfigurationsdatei
+   sudo chmod 644 /etc/wireguard/wg0.conf
+
+   # Schreibrechte für das Wireguard-Verzeichnis (falls nötig)
+   sudo chmod 755 /etc/wireguard
+   ```
+
+   Alternativ können Sie das Backend mit sudo-Rechten ausführen, was jedoch aus Sicherheitsgründen nicht empfohlen wird.
+
+6. **Start-Skript ausführbar machen**
+
+   ```bash
+   chmod +x start-node.sh
+   ```
+
+### Starten der Anwendung
 
 Sie können die Anwendung mit dem bereitgestellten Skript starten:
 
 ```bash
-# Ausführbar machen
-chmod +x start-node.sh
-
-# Starten
+# Starten mit dem Skript
 ./start-node.sh
 ```
 
-Oder manuell:
+Oder manuell in zwei separaten Terminals:
 
 ```bash
-# Backend starten
+# Terminal 1: Backend starten
 cd backend-node
 node server.js
 
-# In einem neuen Terminal: Frontend starten
+# Terminal 2: Frontend starten
 npm start
 ```
+
+Nach dem Start ist die Anwendung unter folgenden URLs erreichbar:
+- Frontend: http://localhost:3000
+- Backend-API: http://localhost:5001/api
+
+### Autostart einrichten (optional)
+
+Um die Anwendung beim Systemstart automatisch zu starten, können Sie einen systemd-Service einrichten:
+
+1. **Service-Datei erstellen**
+
+   ```bash
+   sudo nano /etc/systemd/system/wireguard-dashboard.service
+   ```
+
+2. **Folgende Konfiguration einfügen** (Pfade entsprechend anpassen):
+
+   ```
+   [Unit]
+   Description=Wireguard Dashboard
+   After=network.target
+
+   [Service]
+   Type=simple
+   User=<ihr-username>
+   WorkingDirectory=/pfad/zu/wireguard-dashboard
+   ExecStart=/bin/bash /pfad/zu/wireguard-dashboard/start-node.sh
+   Restart=on-failure
+
+   [Install]
+   WantedBy=multi-user.target
+   ```
+
+3. **Service aktivieren und starten**
+
+   ```bash
+   sudo systemctl daemon-reload
+   sudo systemctl enable wireguard-dashboard
+   sudo systemctl start wireguard-dashboard
+   ```
+
+4. **Status überprüfen**
+
+   ```bash
+   sudo systemctl status wireguard-dashboard
+   ```
 
 ## API-Endpunkte
 
@@ -83,6 +182,27 @@ Das Backend stellt folgende REST-API-Endpunkte zur Verfügung:
 - `GET /api/clients/:clientID/qrcode`: Generiert einen QR-Code für die Client-Konfiguration
 - `DELETE /api/clients/:clientName`: Löscht einen vorhandenen Client
 
+## Fehlerbehebung
+
+### Häufige Probleme
+
+1. **Backend startet nicht**
+   - Überprüfen Sie, ob Port 5001 bereits verwendet wird
+   - Stellen Sie sicher, dass die Wireguard-Konfigurationsdatei existiert und lesbar ist
+   - Überprüfen Sie die Berechtigungen für das Wireguard-Verzeichnis
+
+2. **Frontend startet nicht**
+   - Überprüfen Sie, ob Port 3000 bereits verwendet wird
+   - Stellen Sie sicher, dass alle Abhängigkeiten installiert sind
+
+3. **Keine Clients werden angezeigt**
+   - Überprüfen Sie, ob die Wireguard-Konfigurationsdatei korrekt formatiert ist
+   - Stellen Sie sicher, dass das Backend läuft und erreichbar ist
+
+4. **Änderungen werden nicht gespeichert**
+   - Überprüfen Sie die Schreibrechte für das Wireguard-Verzeichnis
+   - Stellen Sie sicher, dass der Benutzer, der das Backend ausführt, ausreichende Rechte hat
+
 ## Technologien
 
 - **Frontend**:
@@ -93,14 +213,6 @@ Das Backend stellt folgende REST-API-Endpunkte zur Verfügung:
   - Node.js
   - Express
   - Child Process für Systemaufrufe
-
-## Konfiguration
-
-Die Wireguard-Konfigurationsdatei wird standardmäßig aus `etc/wireguard/wg0.conf` gelesen. Sie können den Pfad durch Setzen der Umgebungsvariable `WIREGUARD_CONFIG_PATH` ändern.
-
-Zusätzlich kann das Wireguard-Verzeichnis durch Setzen der Umgebungsvariable `WIREGUARD_DIR` angepasst werden.
-
-Der Client-Status wird in der Datei `clients_status.json` im Wireguard-Verzeichnis gespeichert.
 
 ## Lizenz
 
