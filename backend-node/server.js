@@ -4,6 +4,17 @@ const fs = require('fs');
 const path = require('path');
 const { exec, execSync } = require('child_process');
 
+// Umgebungsvariablen aus .env-Datei laden, falls vorhanden
+try {
+  const envPath = path.resolve(__dirname, '../.env');
+  if (fs.existsSync(envPath)) {
+    console.log(`Lade Umgebungsvariablen aus ${envPath}`);
+    require('dotenv').config({ path: envPath });
+  }
+} catch (error) {
+  console.warn('Konnte .env-Datei nicht laden:', error.message);
+}
+
 const app = express();
 const PORT = process.env.PORT || 5001;
 
@@ -16,9 +27,38 @@ app.use(express.json());
 // Konfigurationspfad für die WireGuard-Konfigurationsdatei
 const CONFIG_PATH = process.env.WIREGUARD_CONFIG_PATH || '../etc/wireguard/wg0.conf';
 const WIREGUARD_DIR = process.env.WIREGUARD_DIR || '../etc/wireguard';
+// Pfad für die Statusdatei der Clients
+const CLIENTS_STATUS_FILE = path.join(WIREGUARD_DIR, 'clients_status.json');
 
 // Globaler Speicher für Client-Status
 let clientsStatus = {};
+
+// Funktion zum Speichern des Client-Status in eine Datei
+function saveClientsStatus() {
+  try {
+    fs.writeFileSync(CLIENTS_STATUS_FILE, JSON.stringify(clientsStatus, null, 2), 'utf8');
+    console.log(`Client-Status in ${CLIENTS_STATUS_FILE} gespeichert.`);
+  } catch (error) {
+    console.error('Fehler beim Speichern des Client-Status:', error);
+  }
+}
+
+// Funktion zum Laden des Client-Status aus einer Datei
+function loadClientsStatus() {
+  try {
+    if (fs.existsSync(CLIENTS_STATUS_FILE)) {
+      const data = fs.readFileSync(CLIENTS_STATUS_FILE, 'utf8');
+      clientsStatus = JSON.parse(data);
+      console.log(`Client-Status aus ${CLIENTS_STATUS_FILE} geladen.`);
+    } else {
+      console.log('Keine Client-Status-Datei gefunden. Ein neuer Status wird erstellt.');
+      clientsStatus = {};
+    }
+  } catch (error) {
+    console.error('Fehler beim Laden des Client-Status:', error);
+    clientsStatus = {};
+  }
+}
 
 // Funktion zum Parsen der WireGuard-Konfigurationsdatei
 function parseWireguardConfig(configPath) {
@@ -150,9 +190,13 @@ async function updateClientsStatus() {
       }
     }
     
-    console.log('Ping-Überprüfung abgeschlossen.');
+    // Speichere den aktuellen Status in der Datei
+    saveClientsStatus();
+    
+    return { allClients, clientsStatus };
   } catch (error) {
-    console.error('Fehler bei der Aktualisierung des Client-Status:', error);
+    console.error('Fehler beim Aktualisieren des Client-Status:', error);
+    throw error;
   }
 }
 
@@ -160,7 +204,33 @@ async function updateClientsStatus() {
 app.get('/api/clients', (req, res) => {
   try {
     const clients = parseWireguardConfig(CONFIG_PATH);
-    res.json(clients);
+    
+    // Verbinde Client-Informationen mit dem Status
+    const adminClientsWithStatus = clients.adminClients.map(client => ({
+      ...client,
+      status: clientsStatus[client.ip]?.status || 'unknown',
+      lastSeen: clientsStatus[client.ip]?.lastSeen || null
+    }));
+    
+    const normalClientsWithStatus = clients.normalClients.map(client => ({
+      ...client,
+      status: clientsStatus[client.ip]?.status || 'unknown',
+      lastSeen: clientsStatus[client.ip]?.lastSeen || null
+    }));
+    
+    res.json({
+      adminClients: adminClientsWithStatus,
+      normalClients: normalClientsWithStatus
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// API-Endpunkt zum Abrufen des Client-Status
+app.get('/api/clients/status', (req, res) => {
+  try {
+    res.json(clientsStatus);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -169,9 +239,26 @@ app.get('/api/clients', (req, res) => {
 // API-Endpunkt zum manuellen Aktualisieren des Client-Status
 app.post('/api/clients/ping', async (req, res) => {
   try {
-    await updateClientsStatus();
+    const status = await updateClientsStatus();
     const clients = parseWireguardConfig(CONFIG_PATH);
-    res.json(clients);
+    
+    // Verbinde Client-Informationen mit dem Status
+    const adminClientsWithStatus = clients.adminClients.map(client => ({
+      ...client,
+      status: clientsStatus[client.ip]?.status || 'unknown',
+      lastSeen: clientsStatus[client.ip]?.lastSeen || null
+    }));
+    
+    const normalClientsWithStatus = clients.normalClients.map(client => ({
+      ...client,
+      status: clientsStatus[client.ip]?.status || 'unknown',
+      lastSeen: clientsStatus[client.ip]?.lastSeen || null
+    }));
+    
+    res.json({
+      adminClients: adminClientsWithStatus,
+      normalClients: normalClientsWithStatus
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -406,17 +493,18 @@ app.delete('/api/clients/:clientName', (req, res) => {
   }
 });
 
-// Regelmäßige Aktualisierung des Client-Status (alle 60 Sekunden)
-setInterval(updateClientsStatus, 60000);
+// Statische Frontend-Dateien bedienen (für Produktionsumgebung)
+app.use(express.static(path.join(__dirname, '../build')));
 
-// Initiale Aktualisierung des Client-Status beim Serverstart
-updateClientsStatus();
+// Route für alle anderen Anfragen zurück zum Index (SPA-Support)
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../build', 'index.html'));
+});
 
 // Server starten
 app.listen(PORT, () => {
   console.log(`Server läuft auf Port ${PORT}`);
-  console.log(`WireGuard-Konfigurationsdatei: ${CONFIG_PATH}`);
-  console.log(`WireGuard-Verzeichnis: ${WIREGUARD_DIR}`);
+  console.log(`Wireguard-Konfigurationspfad: ${CONFIG_PATH}`);
   
   // Stelle sicher, dass die Verzeichnisstruktur existiert
   try {
@@ -439,4 +527,13 @@ app.listen(PORT, () => {
   } catch (error) {
     console.error('Fehler beim Erstellen der Verzeichnisstruktur:', error);
   }
-}); 
+  
+  // Client-Status beim Start laden
+  loadClientsStatus();
+  
+  // Regelmäßige Statusaktualisierung (alle 60 Sekunden)
+  setInterval(updateClientsStatus, 60000);
+  
+  // Initiale Aktualisierung des Client-Status beim Serverstart
+  updateClientsStatus();
+});

@@ -24,3 +24,23 @@ yarn-error.log
 # Betriebssystem-Dateien
 .DS_Store
 Thumbs.db
+
+# Zusätzliche sicherheitsrelevante Ausschlüsse
+# WireGuard-spezifische Dateien
+*.key
+*.pem
+*.crt
+*.conf
+*.p12
+*.pfx
+*.jks
+*.keystore
+
+# Logs
+logs/
+*.log
+
+# Temporäre Dateien
+*.tmp
+*.temp
+.cache/
