@@ -12,6 +12,7 @@ import {
   MagnifyingGlassIcon,
   ArrowPathIcon
 } from '@heroicons/react/24/outline';
+import { downloadClientConfig, deleteClient } from '../services/api';
 
 export default function Dashboard() {
   const [clientList, setClientList] = useState({ adminClients: [], normalClients: [] });
@@ -107,26 +108,24 @@ export default function Dashboard() {
   );
 
   const handleAddClient = (newClient) => {
-    const id = clientList.adminClients.length + clientList.normalClients.length + 1;
-    const now = new Date().toISOString();
-    const ip = `10.0.0.${id + 1}`;
-    const publicKey = `key-${id}-${Math.random().toString(36).substring(2, 10)}=`;
+    // Aktualisiere die Clientlisten basierend auf dem neu erstellten Client
+    if (newClient.isAdmin) {
+      setClientList({
+        adminClients: [...clientList.adminClients, newClient],
+        normalClients: clientList.normalClients
+      });
+    } else {
+      setClientList({
+        adminClients: clientList.adminClients,
+        normalClients: [...clientList.normalClients, newClient]
+      });
+    }
     
-    const client = {
-      id,
-      name: newClient.name,
-      ip,
-      publicKey,
-      lastSeen: now,
-      isAdmin: newClient.isAdmin,
-      status: 'online'
-    };
+    // Zeige den neu erstellten Client an
+    setSelectedClient(newClient);
     
-    setClientList({
-      adminClients: [...clientList.adminClients, client],
-      normalClients: client.isAdmin ? clientList.normalClients : [...clientList.normalClients, client]
-    });
-    setSelectedClient(client);
+    // Zeige eine Erfolgsmeldung (könnte in einer Toast-Komponente implementiert werden)
+    alert(`Client "${newClient.name}" wurde erfolgreich erstellt. Die Konfigurationsdatei wurde unter etc/wireguard/${newClient.isAdmin ? 'admin' : 'client'}/${newClient.name}/${newClient.name}.conf im Projektordner gespeichert.`);
   };
 
   const formatDate = (dateString) => {
@@ -169,6 +168,50 @@ export default function Dashboard() {
       return `${Math.floor(diffInSeconds / 3600)} Stunden`;
     } else {
       return `${Math.floor(diffInSeconds / 86400)} Tagen`;
+    }
+  };
+
+  // Funktion zum Herunterladen der Client-Konfiguration
+  const handleDownloadConfig = (client) => {
+    downloadClientConfig(client.name, client.isAdmin);
+  };
+  
+  // Funktion zum Löschen eines Clients
+  const handleDeleteClient = async (client) => {
+    // Zeige eine Bestätigungsabfrage
+    const confirmed = window.confirm(
+      `Sind Sie sicher, dass Sie den Client "${client.name}" löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden.`
+    );
+    
+    if (confirmed) {
+      try {
+        await deleteClient(client.name, client.isAdmin);
+        
+        // Entferne den Client aus dem State
+        setClientList(prevState => {
+          if (client.isAdmin) {
+            return {
+              ...prevState,
+              adminClients: prevState.adminClients.filter(c => c.id !== client.id)
+            };
+          } else {
+            return {
+              ...prevState,
+              normalClients: prevState.normalClients.filter(c => c.id !== client.id)
+            };
+          }
+        });
+        
+        // Wenn der gelöschte Client derzeit ausgewählt ist, setze die Auswahl zurück
+        if (selectedClient && selectedClient.id === client.id) {
+          setSelectedClient(null);
+        }
+        
+        // Zeige eine Erfolgsmeldung
+        alert(`Client "${client.name}" wurde erfolgreich gelöscht.`);
+      } catch (error) {
+        alert(`Fehler beim Löschen des Clients: ${error.message}`);
+      }
     }
   };
 
@@ -307,7 +350,7 @@ export default function Dashboard() {
                 <span className="bg-gray-100 text-gray-800 p-1 rounded mr-2">
                   <UserIcon className="h-5 w-5" />
                 </span>
-                Normale Clients
+                Clients
                 <span className="ml-2 bg-gray-100 text-gray-800 px-2 py-0.5 rounded-full text-xs font-medium">
                   {filteredNormalClients.length}
                 </span>
@@ -414,15 +457,17 @@ export default function Dashboard() {
               <button
                 type="button"
                 className="inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 transition-colors duration-150"
+                onClick={() => handleDownloadConfig(selectedClient)}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                 </svg>
-                Konfiguration
+                Konfiguration herunterladen
               </button>
               <button
                 type="button"
                 className="inline-flex items-center rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600 transition-colors duration-150"
+                onClick={() => handleDeleteClient(selectedClient)}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
