@@ -1,5 +1,5 @@
 // API-Basis-URL
-const API_BASE_URL = 'http://localhost:5001/api';
+const API_BASE_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5001/api';
 
 // Download der Client-Konfiguration
 export async function downloadClientConfig(clientName, isAdmin) {
